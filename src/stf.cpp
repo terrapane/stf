@@ -204,7 +204,7 @@ std::string FriendlyDuration(std::chrono::nanoseconds &duration)
  *  Comments:
  *      None.
  */
-std::size_t RegisterTest(const std::string &name,
+std::size_t RegisterTest(const char *name,
                          const std::function<void()> &test,
                          unsigned timeout) noexcept
 {
@@ -241,7 +241,7 @@ std::size_t RegisterTest(const std::string &name,
  *  Comments:
  *      None.
  */
-bool ExcludeTest(const std::string &name) noexcept
+bool ExcludeTest(const char *name) noexcept
 {
     try
     {
