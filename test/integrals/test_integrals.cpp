@@ -79,8 +79,8 @@ STF_TEST(Integrals, Inequality)
     }
 
     {
-        signed char i = (signed char)char(140);
-        unsigned char j = char(140);
+        signed char i = static_cast<signed char>(140);
+        unsigned char j = static_cast<char>(140);
 
         STF_ASSERT_NE(i, j);
     }

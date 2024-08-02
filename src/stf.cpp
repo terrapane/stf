@@ -30,7 +30,6 @@
 #include <chrono>
 #include <thread>
 #include <condition_variable>
-#include <chrono>
 #include <mutex>
 #include <cstdlib>
 #include <typeinfo>
@@ -39,11 +38,17 @@
 namespace Terra::STF
 {
 
-// String constants used when producing failure messages
-std::string ExpectText = "  expected: ";
-std::string ActualText = "    actual: ";
-std::string LHSText = "  lhs: ";
-std::string RHSText = "  rhs: ";
+// Strings used when producing failure messages
+std::string ExpectText;
+std::string ActualText;
+std::string LHSText;
+std::string RHSText;
+
+// Global used to indicate a test failed
+std::atomic<bool> Test_Failed{};
+
+// Count of tests that failed to register
+unsigned failed_registrations{};
 
 // Define a vector to hold unit test functions to execute
 using UnitTests = std::vector<std::tuple<std::string,
@@ -53,11 +58,126 @@ using UnitTests = std::vector<std::tuple<std::string,
 // Define a vector to hold unit test names to exclude from running
 using UnitTestExclusions = std::vector<std::string>;
 
+namespace
+{
+
 // Define a pointer for the aforementioned UnitTests
-static std::unique_ptr<UnitTests> Unit_Tests;
+std::unique_ptr<UnitTests> Unit_Tests;
 
 // Define a pointer for tests that should be excluded
-static std::unique_ptr<UnitTestExclusions> Unit_Test_Exclusions;
+std::unique_ptr<UnitTestExclusions> Unit_Test_Exclusions;
+
+/*
+ *  AssignMessageStrings()
+ *
+ *  Description:
+ *      Assign global message string values.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      Nothing.
+ *
+ *  Comments:
+ *      None.
+ */
+void AssignMessageStrings()
+{
+    ExpectText = "  expected: ";
+    ActualText = "    actual: ";
+    LHSText = "  lhs: ";
+    RHSText = "  rhs: ";
+}
+
+/*
+ *  GetMemoryHex()
+ *
+ *  Description:
+ *      Creates a string containing hex values from a block of memory.
+ *
+ *  Parameters:
+ *      memory [in]
+ *          A pointer into memory.
+ *
+ *      length [in]
+ *          The number of octets to read from memory and convert into a hex
+ *          string.
+ *
+ *  Returns:
+ *      The hex string produced by this routine.
+ *
+ *  Comments:
+ *      None.
+ */
+std::string GetMemoryHex(const std::uint8_t *memory, std::size_t length)
+{
+    std::ostringstream oss;
+
+    oss << std::hex << std::setfill('0');
+
+    for (std::size_t i = 0; i < length; i++)
+    {
+        if (i > 0) oss << " ";
+        oss << std::setw(2) << +memory[i];
+    }
+
+    return oss.str();
+}
+
+/*
+ *  FriendlyDuration()
+ *
+ *  Description:
+ *      Return a human-friendly duration string that uses seconds, milliseconds,
+ *      microseconds, or nanoseconds depending on the value of the duration.
+ *
+ *  Parameters:
+ *      duration [in]
+ *          The duration to print.
+ *
+ *  Returns:
+ *      Human-friendly duration string.
+ *
+ *  Comments:
+ *      None.
+ */
+std::string FriendlyDuration(std::chrono::nanoseconds &duration)
+{
+    std::ostringstream oss;
+
+    // Should we produce seconds?
+    if (duration >= std::chrono::seconds(1))
+    {
+        // Convert to microseconds to get fractional output
+        oss << static_cast<double>(
+                   std::chrono::duration_cast<std::chrono::milliseconds>(
+                       duration).count()) / 1000.0
+            << " s";
+        return oss.str();
+    }
+
+    // Should we produce milliseconds?
+    if (duration >= std::chrono::milliseconds(1))
+    {
+        // Convert to microseconds to get fractional output
+        oss << static_cast<double>(
+                   std::chrono::duration_cast<std::chrono::microseconds>(
+                       duration).count()) / 1000.0
+            << " ms";
+        return oss.str();
+    }
+
+    // Produce fractional microsecond output
+    oss << static_cast<double>(
+               std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
+                   .count()) / 1000.0
+        << " us";
+
+    return oss.str();
+}
+
+} // namespace
 
 /*
  *  RegisterTest()
@@ -78,20 +198,29 @@ static std::unique_ptr<UnitTestExclusions> Unit_Test_Exclusions;
  *          value is Default_Timeout.
  *
  *  Returns:
- *      An identifier for the registered test.
+ *      An identifier for the registered test.  If zero is returned, it means
+ *      the test could not be registered.
  *
  *  Comments:
  *      None.
  */
 std::size_t RegisterTest(const std::string &name,
                          const std::function<void()> &test,
-                         unsigned timeout)
+                         unsigned timeout) noexcept
 {
-    // If this is the first test, allocate storage
-    if (!Unit_Tests) Unit_Tests = std::make_unique<UnitTests>();
+    try
+    {
+        // If this is the first test, allocate storage
+        if (!Unit_Tests) Unit_Tests = std::make_unique<UnitTests>();
 
-    // Store this test in the unit test vector
-    Unit_Tests->push_back({name, test, timeout});
+        // Store this test in the unit test vector
+        Unit_Tests->emplace_back(name, test, timeout);
+    }
+    catch (...)
+    {
+        failed_registrations++;
+        return 0;
+    }
 
     return Unit_Tests->size();
 }
@@ -112,16 +241,24 @@ std::size_t RegisterTest(const std::string &name,
  *  Comments:
  *      None.
  */
-bool ExcludeTest(const std::string &name)
+bool ExcludeTest(const std::string &name) noexcept
 {
-    // If this is the first test exclusion, allocate storage
-    if (!Unit_Test_Exclusions)
+    try
     {
-        Unit_Test_Exclusions = std::make_unique<UnitTestExclusions>();
-    }
+        // If this is the first test exclusion, allocate storage
+        if (!Unit_Test_Exclusions)
+        {
+            Unit_Test_Exclusions = std::make_unique<UnitTestExclusions>();
+        }
 
-    // Store this test in the unit test vector
-    Unit_Test_Exclusions->push_back(name);
+        // Store this test in the unit test vector
+        Unit_Test_Exclusions->emplace_back(name);
+    }
+    catch (...)
+    {
+        failed_registrations++;
+        return false;
+    }
 
     return true;
 }
@@ -181,7 +318,7 @@ void PrintValue(const std::string &text, unsigned char value)
     oss << std::hex << std::setfill('0');
 
     oss << text;
-    if (std::isprint(value)) oss << "'" << value << "' ";
+    if (std::isprint(value) != 0) oss << "'" << value << "' ";
     oss << "(unsigned char 0x" << std::setw(2) << +value << ")";
 
     std::cout << oss.str() << std::endl;
@@ -213,7 +350,7 @@ void PrintValue(const std::string &text, char value)
     oss << std::hex << std::setfill('0');
 
     oss << text;
-    if (std::isprint(value)) oss << "'" << value << "' ";
+    if (std::isprint(value) != 0) oss << "'" << value << "' ";
     oss << "(char 0x"
         << std::setw(2)
         << +static_cast<unsigned char>(value)
@@ -248,7 +385,7 @@ void PrintValue(const std::string &text, signed char value)
     oss << std::hex << std::setfill('0');
 
     oss << text;
-    if (std::isprint(value)) oss << "'" << value << "' ";
+    if (std::isprint(value) != 0) oss << "'" << value << "' ";
     oss << "(signed char 0x"
         << std::setw(2)
         << +static_cast<unsigned char>(value)
@@ -284,7 +421,10 @@ void PrintValue(const std::string &text, char8_t value)
     oss << std::hex << std::setfill('0');
 
     oss << text;
-    if (std::isprint(value)) oss << "'" << static_cast<char>(value) << "' ";
+    if (std::isprint(value) != 0)
+    {
+        oss << "'" << static_cast<char>(value) << "' ";
+    }
     oss << "(char8_t 0x" << std::setw(2) << +value << ")";
 
     std::cout << oss.str() << std::endl;
@@ -441,18 +581,18 @@ void PrintAssertFailed(const std::string &file, std::size_t line)
  *          The value to check to be true.
  *
  *  Returns:
- *      Nothing.
+ *      Returns the value of "value".
  *
  *  Comments:
  *      None.
  */
-void AssertBoolean(const std::string &file, std::size_t line, bool value)
+bool AssertBoolean(const std::string &file, std::size_t line, bool value)
 {
-    if (value) return;
+    if (value) return value;
 
     PrintAssertFailed(file, line);
 
-    std::exit(EXIT_FAILURE);
+    return false;
 }
 
 /*
@@ -485,19 +625,19 @@ void AssertBoolean(const std::string &file, std::size_t line, bool value)
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  float lhs,
                  float rhs,
                  float epsilon)
 {
-    if (fabsf(lhs - rhs) < epsilon) return;
+    if (fabsf(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
     PrintValue(LHSText, lhs);
     PrintValue(RHSText, rhs);
 
-    std::exit(EXIT_FAILURE);
+    return false;
 }
 
 /*
@@ -530,19 +670,19 @@ void AssertClose(const std::string &file,
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  double lhs,
                  double rhs,
                  double epsilon)
 {
-    if (fabs(lhs - rhs) < epsilon) return;
+    if (fabs(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
     PrintValue(LHSText, lhs);
     PrintValue(RHSText, rhs);
 
-    std::exit(EXIT_FAILURE);
+    return false;
 }
 
 /*
@@ -575,54 +715,19 @@ void AssertClose(const std::string &file,
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  long double lhs,
                  long double rhs,
                  long double epsilon)
 {
-    if (fabsl(lhs - rhs) < epsilon) return;
+    if (fabsl(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
     PrintValue(LHSText, lhs);
     PrintValue(RHSText, rhs);
 
-    std::exit(EXIT_FAILURE);
-}
-
-/*
- *  GetMemoryHex()
- *
- *  Description:
- *      Creates a string containing hex values from a block of memory.
- *
- *  Parameters:
- *      memory [in]
- *          A pointer into memory.
- *
- *      length [in]
- *          The number of octets to read from memory and convert into a hex
- *          string.
- *
- *  Returns:
- *      The hex string produced by this routine.
- *
- *  Comments:
- *      None.
- */
-static std::string GetMemoryHex(const std::uint8_t *memory, std::size_t length)
-{
-    std::ostringstream oss;
-
-    oss << std::hex << std::setfill('0');
-
-    for (std::size_t i = 0; i < length; i++)
-    {
-        if (i) oss << " ";
-        oss << std::setw(2) << +memory[i];
-    }
-
-    return oss.str();
+    return false;
 }
 
 /*
@@ -654,7 +759,7 @@ static std::string GetMemoryHex(const std::uint8_t *memory, std::size_t length)
  *  Comments:
  *      None.
  */
-void AssertMemoryEqual(const std::string &file,
+bool AssertMemoryEqual(const std::string &file,
                        const std::size_t line,
                        const void *expected,
                        const void *actual,
@@ -676,16 +781,15 @@ void AssertMemoryEqual(const std::string &file,
         }
     }
 
-    if (!equal)
-    {
-        PrintAssertFailed(file, line);
-        std::cout << ExpectText << "0x" << GetMemoryHex(left, length)
-                  << std::endl
-                  << ActualText << "0x" << GetMemoryHex(right, length)
-                  << std::endl;
+    if (equal) return true;
 
-        std::exit(EXIT_FAILURE);
-    }
+    PrintAssertFailed(file, line);
+    std::cout << ExpectText << "0x" << GetMemoryHex(left, length)
+              << std::endl
+              << ActualText << "0x" << GetMemoryHex(right, length)
+              << std::endl;
+
+    return false;
 }
 
 /*
@@ -717,7 +821,7 @@ void AssertMemoryEqual(const std::string &file,
  *  Comments:
  *      None.
  */
-void AssertMemoryNotEqual(const std::string &file,
+bool AssertMemoryNotEqual(const std::string &file,
                           const std::size_t line,
                           const void *lhs,
                           const void *rhs,
@@ -739,16 +843,15 @@ void AssertMemoryNotEqual(const std::string &file,
         }
     }
 
-    if (equal)
-    {
-        PrintAssertFailed(file, line);
-        std::cout << LHSText << "0x" << GetMemoryHex(left, length)
-                  << std::endl
-                  << RHSText << "0x" << GetMemoryHex(right, length)
-                  << std::endl;
+    if (!equal) return true;
 
-        std::exit(EXIT_FAILURE);
-    }
+    PrintAssertFailed(file, line);
+    std::cout << LHSText << "0x" << GetMemoryHex(left, length)
+              << std::endl
+              << RHSText << "0x" << GetMemoryHex(right, length)
+              << std::endl;
+
+    return false;
 }
 
 /*
@@ -775,83 +878,26 @@ void AssertMemoryNotEqual(const std::string &file,
  *  Comments:
  *      None.
  */
-void AssertException(const std::string &file,
+bool AssertException(const std::string &file,
                      const std::size_t line,
-                     const std::function<void()> function)
+                     const std::function<void()> &function)
 {
-    bool exception_thrown = false;
-
     try
     {
         function();
     }
     catch (...)
     {
-        exception_thrown = true;
+        return true;
     }
 
-    if (!exception_thrown)
-    {
-        PrintAssertFailed(file, line);
-        PrintValue(ExpectText, std::string("any exception thrown"));
-        PrintValue(ActualText, std::string("no exception thrown"));
-        std::exit(EXIT_FAILURE);
-    }
+    PrintAssertFailed(file, line);
+    PrintValue(ExpectText, std::string("any exception thrown"));
+    PrintValue(ActualText, std::string("no exception thrown"));
+    return false;
 }
 
-/*
- *  FriendlyDuration()
- *
- *  Description:
- *      Return a human-friendly duration string that uses seconds, milliseconds,
- *      microseconds, or nanoseconds depending on the value of the duration.
- *
- *  Parameters:
- *      duration [in]
- *          The duration to print.
- *
- *  Returns:
- *      Human-friendly duration string.
- *
- *  Comments:
- *      None.
- */
-static std::string FriendlyDuration(std::chrono::nanoseconds &duration)
-{
-    std::ostringstream oss;
-
-    // Should we produce seconds?
-    if (duration >= std::chrono::seconds(1))
-    {
-        // Convert to microseconds to get fractional output
-        oss << static_cast<double>(
-                   std::chrono::duration_cast<std::chrono::milliseconds>(
-                       duration).count()) / 1000.0
-            << " s";
-        return oss.str();
-    }
-
-    // Should we produce milliseconds?
-    if (duration >= std::chrono::milliseconds(1))
-    {
-        // Convert to microseconds to get fractional output
-        oss << static_cast<double>(
-                   std::chrono::duration_cast<std::chrono::microseconds>(
-                       duration).count()) / 1000.0
-            << " ms";
-        return oss.str();
-    }
-
-    // Produce fractional microsecond output
-    oss << static_cast<double>(
-               std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
-                   .count()) / 1000.0
-        << " us";
-
-    return oss.str();
-}
-
-} // Namespace STF
+} // Namespace Terra::STF
 
 /*
  *  main()
@@ -877,8 +923,19 @@ int main()
     if (!Terra::STF::Unit_Tests || Terra::STF::Unit_Tests->empty())
     {
         std::cout << "Error: there are no registered tests" << std::endl;
-        std::exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
+
+    // If any tests failed to register, exit with failure
+    if (Terra::STF::failed_registrations)
+    {
+        std::cout << "Error: " << Terra::STF::failed_registrations
+                  << " tests failed to register to get excluded" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    // Assign the message string values
+    Terra::STF::AssignMessageStrings();
 
     std::cout << "Total numbers of tests: "
               << Terra::STF::Unit_Tests->size()
@@ -893,7 +950,7 @@ int main()
             std::mutex test_mutex;
             std::string name;
             std::function<void()> test;
-            unsigned timeout;
+            unsigned timeout{};
             std::chrono::steady_clock::time_point test_start_time;
             std::chrono::steady_clock::time_point test_end_time;
 
@@ -947,14 +1004,14 @@ int main()
                                   << "Unexpected exception thrown: "
                                   << e.what()
                                   << std::endl;
-                        std::exit(EXIT_FAILURE);
+                        Terra::STF::Test_Failed = true;
                     }
                     catch (...)
                     {
                         std::cout << std::endl
                                   << "Unexpected exception thrown"
                                   << std::endl;
-                        std::exit(EXIT_FAILURE);
+                        Terra::STF::Test_Failed = true;
                     }
 
                     // Get the end time
@@ -976,11 +1033,16 @@ int main()
                           << timeout
                           << " second timeout; terminating"
                           << std::endl;
+
+                // We must force termination
                 std::exit(EXIT_FAILURE);
             }
 
             // Join the test thread
             test_thread.join();
+
+            // If the test failed, exit
+            if (Terra::STF::Test_Failed.load()) return EXIT_FAILURE;
 
             // Compute the duration for this test
             std::chrono::nanoseconds test_duration =
@@ -1001,13 +1063,13 @@ int main()
     {
         std::cout << std::endl;
         std::cout << "Unexpected exception thrown: " << e.what() << std::endl;
-        std::exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     catch (...)
     {
         std::cout << std::endl;
         std::cout << "Unexpected exception thrown" << std::endl;
-        std::exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     std::cout << "All test(s) passed successfully ("

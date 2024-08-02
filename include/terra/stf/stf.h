@@ -117,13 +117,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <type_traits>
+#include <string>
+#include <atomic>
 
 // Macro to define a test function and register the test for execution
 #define STF_TEST(group, test) \
     void STF_Test_ ## group ## _ ## test(); \
     const std::size_t STF_Test_ID_ ## group ## _ ## test = \
-        Terra::STF::RegisterTest(std::string(#group) + std::string("::") + \
-                                 std::string(#test), \
+        Terra::STF::RegisterTest(#group "::" #test, \
                                  STF_Test_ ## group ## _ ## test); \
     void STF_Test_ ## group ## _ ## test()
 
@@ -131,8 +132,7 @@
 #define STF_TEST_TIMEOUT(group, test, timeout) \
     void STF_Test_ ## group ## _ ## test(); \
     const std::size_t STF_Test_ID_ ## group ## _ ## test = \
-        Terra::STF::RegisterTest(std::string(#group) + std::string("::") + \
-                                 std::string(#test), \
+        Terra::STF::RegisterTest(#group "::" #test, \
                                  STF_Test_ ## group ## _ ## test, \
                                  timeout); \
     void STF_Test_ ## group ## _ ## test()
@@ -140,62 +140,122 @@
 // Macro to specify a test that should be excluded from execution
 #define STF_TEST_EXCLUDE(group, test) \
     const bool STF_Test_ID_ ## group ## _ ## test ## _excluded = \
-        Terra::STF::ExcludeTest(std::string(#group) + std::string("::") + \
-                                std::string(#test));
+        Terra::STF::ExcludeTest(#group "::" #test);
 
 // Macro to test for equality
 #define STF_ASSERT_EQ(expected, actual) \
     if (!((expected) == (actual))) \
-        Terra::STF::ExpectFail(__FILE__, __LINE__, (expected), (actual))
+    { \
+        Terra::STF::ExpectFail(__FILE__, __LINE__, (expected), (actual)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test for inequality
 #define STF_ASSERT_NE(a, b) \
-    if (!((a) != (b))) Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b))
+    if (!((a) != (b))) \
+    { \
+        Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test that a > b
 #define STF_ASSERT_GT(a, b) \
-    if (!((a) > (b))) Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b))
+    if (!((a) > (b))) \
+    { \
+        Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test that a >= b
 #define STF_ASSERT_GE(a, b) \
-    if (!((a) >= (b))) Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b))
+    if (!((a) >= (b))) \
+    { \
+        Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test that a < b
 #define STF_ASSERT_LT(a, b) \
-    if (!((a) < (b))) Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b))
+    if (!((a) < (b))) \
+    { \
+        Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test that a <= b
 #define STF_ASSERT_LE(a, b) \
-    if (!((a) <= (b))) Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b))
+    if (!((a) <= (b))) \
+    { \
+        Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test for true
 #define STF_ASSERT_TRUE(a) \
-    Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == true)
+    if (!Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == true)) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test for false
 #define STF_ASSERT_FALSE(a) \
-    Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == false)
+    if (!Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == false)) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test that difference in float or double values are less than epsilon
 #define STF_ASSERT_CLOSE(a, b, epsilon) \
-    Terra::STF::AssertClose(__FILE__, __LINE__, (a), (b), (epsilon))
+    if (!Terra::STF::AssertClose(__FILE__, __LINE__, (a), (b), (epsilon))) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test memory ranges for equality
 #define STF_ASSERT_MEM_EQ(a, b, size) \
-    Terra::STF::AssertMemoryEqual(__FILE__, __LINE__, (a), (b), (size))
+    if (!Terra::STF::AssertMemoryEqual(__FILE__, __LINE__, (a), (b), (size))) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test memory ranges for inequality
 #define STF_ASSERT_MEM_NE(a, b, size) \
-    Terra::STF::AssertMemoryNotEqual(__FILE__, __LINE__, (a), (b), (size))
+    if (!Terra::STF::AssertMemoryNotEqual(__FILE__, \
+                                          __LINE__, \
+                                          (a), \
+                                          (b), \
+                                          (size))) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test for exceptions to be thrown on a function call
 #define STF_ASSERT_EXCEPTION(function) \
-    Terra::STF::AssertException(__FILE__, __LINE__, (function))
+    if (!Terra::STF::AssertException(__FILE__, __LINE__, (function))) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 // Macro to test for specific exceptions to be thrown on a function call
 #define STF_ASSERT_EXCEPTION_E(function, exception) \
-    Terra::STF::AssertException<exception>(__FILE__, __LINE__, \
-                                           (function), #exception)
+    if (!Terra::STF::AssertException<exception>(__FILE__, __LINE__, \
+                                                (function), #exception)) \
+    { \
+        Terra::STF::Test_Failed = true; \
+        return; \
+    }
 
 //////////////////////////////////////////////////////////////////////////////
 ////////////////////                                   ///////////////////////
@@ -214,6 +274,8 @@ extern std::string ExpectText;
 extern std::string ActualText;
 extern std::string LHSText;
 extern std::string RHSText;
+extern std::atomic<bool> Test_Failed;
+extern unsigned failed_registrations;
 
 /*
  *  RegisterTest()
@@ -241,7 +303,7 @@ extern std::string RHSText;
  */
 std::size_t RegisterTest(const std::string &name,
                          const std::function<void()> &test,
-                         unsigned timeout = Default_Timeout);
+                         unsigned timeout = Default_Timeout) noexcept;
 
 /*
  *  ExcludeTest()
@@ -259,7 +321,7 @@ std::size_t RegisterTest(const std::string &name,
  *  Comments:
  *      None.
  */
-bool ExcludeTest(const std::string &name);
+bool ExcludeTest(const std::string &name) noexcept;
 
 /*
  *  PrintValue()
@@ -693,8 +755,6 @@ void ExpectFail(const std::string &file,
     PrintAssertFailed(file, line);
     PrintValue(ExpectText, expected);
     PrintValue(ActualText, actual);
-
-    std::exit(EXIT_FAILURE);
 }
 
 /*
@@ -732,8 +792,6 @@ void LhsRhsFail(const std::string &file,
     PrintAssertFailed(file, line);
     PrintValue(LHSText, lhs);
     PrintValue(RHSText, rhs);
-
-    std::exit(EXIT_FAILURE);
 }
 
 /*
@@ -753,12 +811,12 @@ void LhsRhsFail(const std::string &file,
  *          The value to check to be true.
  *
  *  Returns:
- *      Nothing.
+ *      Returns the value of "value".
  *
  *  Comments:
  *      None.
  */
-void AssertBoolean(const std::string &file, std::size_t line, bool value);
+bool AssertBoolean(const std::string &file, std::size_t line, bool value);
 
 /*
  *  AssertClose()
@@ -785,12 +843,12 @@ void AssertBoolean(const std::string &file, std::size_t line, bool value);
  *          the left-hand side and right-hand side value can be no greater.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  float lhs,
                  float rhs,
@@ -821,12 +879,12 @@ void AssertClose(const std::string &file,
  *          the left-hand side and right-hand side value can be no greater.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  double lhs,
                  double rhs,
@@ -857,12 +915,12 @@ void AssertClose(const std::string &file,
  *          the left-hand side and right-hand side value can be no greater.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertClose(const std::string &file,
+bool AssertClose(const std::string &file,
                  const std::size_t line,
                  long double lhs,
                  long double rhs,
@@ -892,12 +950,12 @@ void AssertClose(const std::string &file,
  *          The number of octets of memory to compare.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertMemoryEqual(const std::string &file,
+bool AssertMemoryEqual(const std::string &file,
                        const std::size_t line,
                        const void *expected,
                        const void *actual,
@@ -927,12 +985,12 @@ void AssertMemoryEqual(const std::string &file,
  *          The number of octets of memory to compare.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertMemoryNotEqual(const std::string &file,
+bool AssertMemoryNotEqual(const std::string &file,
                           const std::size_t line,
                           const void *lhs,
                           const void *rhs,
@@ -957,14 +1015,14 @@ void AssertMemoryNotEqual(const std::string &file,
  *          A function to invoke to check for exceptions.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      None.
  */
-void AssertException(const std::string &file,
+bool AssertException(const std::string &file,
                      const std::size_t line,
-                     const std::function<void()> function);
+                     const std::function<void()> &function);
 
 /*
  *  AssertException()
@@ -987,7 +1045,7 @@ void AssertException(const std::string &file,
  *          The name of the expected exception.
  *
  *  Returns:
- *      Nothing.
+ *      True if the assertion is true, else false.
  *
  *  Comments:
  *      Note that if testing generically for something like std::exception,
@@ -995,9 +1053,9 @@ void AssertException(const std::string &file,
  *      be as specific as necessary to ensure expected results.
  */
 template<typename T>
-void AssertException(const std::string &file,
+bool AssertException(const std::string &file,
                      const std::size_t line,
-                     const std::function<void()> function,
+                     const std::function<void()> &function,
                      const std::string exception_name)
 {
     bool exception_thrown = false;
@@ -1021,7 +1079,7 @@ void AssertException(const std::string &file,
     {
         PrintAssertFailed(file, line);
         PrintValue(ExpectText,
-                    std::string("exception of type ") + exception_name);
+                   std::string("exception of type ") + exception_name);
         if (exception_thrown)
         {
             PrintValue(ActualText, std::string("some other exception thrown"));
@@ -1030,8 +1088,11 @@ void AssertException(const std::string &file,
         {
             PrintValue(ActualText, std::string("no exception thrown"));
         }
-        std::exit(EXIT_FAILURE);
+
+        return false;
     }
+
+    return true;
 }
 
 } // Namespace STF

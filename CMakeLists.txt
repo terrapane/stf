@@ -18,6 +18,9 @@ endif()
 # Option to control ability to install the library
 option(stf_INSTALL "Install the STF Library" ON)
 
+# Determine whether clang-tidy will be performed
+option(stf_CLANG_TIDY "Use clang-tidy to perform linting during build" OFF)
+
 # By default, library built for C++20; set stf_CPP_STD to 11, 14, 17, or 20
 if(NOT DEFINED stf_CPP_STD)
     set(stf_CPP_STD 20 CACHE STRING "C++ Version for Testing with STF")
