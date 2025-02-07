@@ -1,3 +1,6 @@
+# Threading support is required
+find_package(Threads REQUIRED)
+
 # Create the STF library and the alias for consistent usage with
 # both installed an installed library and FetchContent
 add_library(stf STATIC stf.cpp)
@@ -10,6 +13,9 @@ target_include_directories(stf
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+
+# Link against library dependencies
+target_link_libraries(stf PRIVATE Threads::Threads)
 
 # Specify the C++ standard to observe
 set_target_properties(stf
