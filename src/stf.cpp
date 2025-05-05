@@ -522,15 +522,16 @@ void PrintValue(const std::string &text, wchar_t value)
     std::ostringstream oss;
     oss << std::hex << std::setfill('0');
 
-    static_assert(sizeof(wchar_t) <= 4, "Unsupported wchar_t size");
+    static_assert((sizeof(wchar_t) == 2) || (sizeof(wchar_t) == 4),
+                  "Unsupported wchar_t size");
 
     // This type varies in size by platform, either 16 or 32 bits observed
-    if (sizeof(wchar_t) == 2)
+    if constexpr (sizeof(wchar_t) == 2)
     {
         oss << text << "wchar_t 0x" << std::setw(4)
             << +static_cast<std::uint16_t>(value);
     }
-    else if (sizeof(wchar_t) == 4)
+    else
     {
         oss << text << "wchar_t 0x" << std::setw(8)
             << +static_cast<std::uint32_t>(value);
