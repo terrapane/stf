@@ -4,7 +4,8 @@ v1.0.3
 
 - Changed the memory comparison to use std::memcmp rather than a slow loop
 - Changed string constants to "const char * const" for simplicity and eye
-  toward C++11 compatibility
+  toward C++11 compatibility, also removed constexpr and nested namespaces
+  since those broke C++11 compatibility
 - Minor CMakeLists.txt change
 
 v1.0.2

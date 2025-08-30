@@ -263,7 +263,9 @@
 ////////////////////                                   ///////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
-namespace Terra::STF
+namespace Terra
+{
+namespace STF
 {
 
 // Default test timeout in seconds
@@ -1096,3 +1098,4 @@ bool AssertException(const std::string &file,
 }
 
 } // Namespace STF
+} // Namespace Terra

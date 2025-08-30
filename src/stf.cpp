@@ -36,7 +36,9 @@
 #include <typeinfo>
 #include <terra/stf/stf.h>
 
-namespace Terra::STF
+namespace Terra
+{
+namespace STF
 {
 
 // Strings used when producing failure messages
@@ -189,7 +191,7 @@ std::size_t RegisterTest(const char *name,
     try
     {
         // If this is the first test, allocate storage
-        if (!Unit_Tests) Unit_Tests = std::make_unique<UnitTests>();
+        if (!Unit_Tests) Unit_Tests.reset(new UnitTests());
 
         // Store this test in the unit test vector
         Unit_Tests->emplace_back(name, test, timeout);
@@ -226,7 +228,7 @@ bool ExcludeTest(const char *name) noexcept
         // If this is the first test exclusion, allocate storage
         if (!Unit_Test_Exclusions)
         {
-            Unit_Test_Exclusions = std::make_unique<UnitTestExclusions>();
+            Unit_Test_Exclusions.reset(new UnitTestExclusions());
         }
 
         // Store this test in the unit test vector
@@ -504,15 +506,15 @@ void PrintValue(const std::string &text, wchar_t value)
                   "Unsupported wchar_t size");
 
     // This type varies in size by platform, either 16 or 32 bits observed
-    if constexpr (sizeof(wchar_t) == 2)
+    if (sizeof(wchar_t) == 2)
     {
         oss << text << "wchar_t 0x" << std::setw(4)
-            << +static_cast<std::uint16_t>(value);
+            << static_cast<std::uint16_t>(value);
     }
     else
     {
         oss << text << "wchar_t 0x" << std::setw(8)
-            << +static_cast<std::uint32_t>(value);
+            << static_cast<std::uint32_t>(value);
     }
 
     std::cout << oss.str() << std::endl;
@@ -851,7 +853,8 @@ bool AssertException(const std::string &file,
     return false;
 }
 
-} // Namespace Terra::STF
+} // Namespace STF
+} // Namespace Terra
 
 /*
  *  main()
