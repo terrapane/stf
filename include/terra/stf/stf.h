@@ -270,10 +270,10 @@ namespace Terra::STF
 constexpr unsigned Default_Timeout = 600;
 
 // String Constants
-extern std::string ExpectText;
-extern std::string ActualText;
-extern std::string LHSText;
-extern std::string RHSText;
+extern const char * const ExpectText;
+extern const char * const ActualText;
+extern const char * const LHSText;
+extern const char * const RHSText;
 extern std::atomic<bool> Test_Failed;
 extern unsigned failed_registrations;
 

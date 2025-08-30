@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # Define the STF project
 project(stf
-        VERSION 1.0.2.0
+        VERSION 1.0.3.0
         DESCRIPTION "Simple Test Framework Library"
         LANGUAGES CXX)
 
@@ -26,11 +26,11 @@ if(NOT DEFINED stf_CPP_STD)
     set(stf_CPP_STD 20 CACHE STRING "C++ Version for Testing with STF")
 endif()
 
-# Include the source directory
-add_subdirectory(src)
-
 # Include CTest, which will set BUILD_TESTING
 include(CTest)
+
+# Include the source directory
+add_subdirectory(src)
 
 # Build tests if conditions are met
 if(BUILD_TESTING AND stf_BUILD_TESTS)

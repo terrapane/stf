@@ -24,6 +24,7 @@
 #include <tuple>
 #include <vector>
 #include <cctype>
+#include <cstring>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -39,10 +40,10 @@ namespace Terra::STF
 {
 
 // Strings used when producing failure messages
-std::string ExpectText;
-std::string ActualText;
-std::string LHSText;
-std::string RHSText;
+const char * const ExpectText = "  expected: ";
+const char * const ActualText = "    actual: ";
+const char * const LHSText = "  lhs: ";
+const char * const RHSText = "  rhs: ";
 
 // Global used to indicate a test failed
 std::atomic<bool> Test_Failed{};
@@ -66,29 +67,6 @@ std::unique_ptr<UnitTests> Unit_Tests;
 
 // Define a pointer for tests that should be excluded
 std::unique_ptr<UnitTestExclusions> Unit_Test_Exclusions;
-
-/*
- *  AssignMessageStrings()
- *
- *  Description:
- *      Assign global message string values.
- *
- *  Parameters:
- *      None.
- *
- *  Returns:
- *      Nothing.
- *
- *  Comments:
- *      None.
- */
-void AssignMessageStrings()
-{
-    ExpectText = "  expected: ";
-    ActualText = "    actual: ";
-    LHSText = "  lhs: ";
-    RHSText = "  rhs: ";
-}
 
 /*
  *  GetMemoryHex()
@@ -119,7 +97,7 @@ std::string GetMemoryHex(const std::uint8_t *memory, std::size_t length)
     for (std::size_t i = 0; i < length; i++)
     {
         if (i > 0) oss << " ";
-        oss << std::setw(2) << +memory[i];
+        oss << std::setw(2) << static_cast<unsigned>(memory[i]);
     }
 
     return oss.str();
@@ -766,28 +744,16 @@ bool AssertMemoryEqual(const std::string &file,
                        const void *actual,
                        std::size_t length)
 {
-    bool equal = true;
-
-    // Convert pointers to uint8_t *
-    const std::uint8_t *left = static_cast<const std::uint8_t *>(expected);
-    const std::uint8_t *right = static_cast<const std::uint8_t *>(actual);
-
-    // Check for any differences
-    for (std::size_t i = 0; i < length; i++)
-    {
-        if (left[i] != right[i])
-        {
-            equal = false;
-            break;
-        }
-    }
-
-    if (equal) return true;
+    // Check for any differences and return true if equal
+    if (std::memcmp(expected, actual, length) == 0) return true;
 
     PrintAssertFailed(file, line);
-    std::cout << ExpectText << "0x" << GetMemoryHex(left, length)
+    std::cout << ExpectText << "0x"
+              << GetMemoryHex(static_cast<const std::uint8_t *>(expected),
+                              length)
               << std::endl
-              << ActualText << "0x" << GetMemoryHex(right, length)
+              << ActualText << "0x"
+              << GetMemoryHex(static_cast<const std::uint8_t *>(actual), length)
               << std::endl;
 
     return false;
@@ -828,28 +794,15 @@ bool AssertMemoryNotEqual(const std::string &file,
                           const void *rhs,
                           std::size_t length)
 {
-    bool equal = true;
-
-    // Convert pointers to uint8_t *
-    const std::uint8_t *left = static_cast<const std::uint8_t *>(lhs);
-    const std::uint8_t *right = static_cast<const std::uint8_t *>(rhs);
-
-    // Check for any differences
-    for (std::size_t i = 0; i < length; i++)
-    {
-        if (left[i] != right[i])
-        {
-            equal = false;
-            break;
-        }
-    }
-
-    if (!equal) return true;
+    // Check for any differences and return true if not equal
+    if (std::memcmp(lhs, rhs, length) != 0) return true;
 
     PrintAssertFailed(file, line);
-    std::cout << LHSText << "0x" << GetMemoryHex(left, length)
+    std::cout << LHSText << "0x"
+              << GetMemoryHex(static_cast<const std::uint8_t *>(lhs), length)
               << std::endl
-              << RHSText << "0x" << GetMemoryHex(right, length)
+              << RHSText << "0x"
+              << GetMemoryHex(static_cast<const std::uint8_t *>(rhs), length)
               << std::endl;
 
     return false;
@@ -928,15 +881,12 @@ int main()
     }
 
     // If any tests failed to register, exit with failure
-    if (Terra::STF::failed_registrations)
+    if (Terra::STF::failed_registrations > 0)
     {
         std::cout << "Error: " << Terra::STF::failed_registrations
                   << " tests failed to register to get excluded" << std::endl;
         return EXIT_FAILURE;
     }
-
-    // Assign the message string values
-    Terra::STF::AssignMessageStrings();
 
     std::cout << "Total numbers of tests: "
               << Terra::STF::Unit_Tests->size()
