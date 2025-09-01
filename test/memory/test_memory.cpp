@@ -41,9 +41,6 @@ STF_TEST(Memory, Test3)
     char buffer1[100];
     char buffer2[100];
 
-    // Ensure the buffers are the same size
-    STF_ASSERT_EQ(sizeof(buffer1), sizeof(buffer2));
-
     // Clear the memory
     std::memset(buffer1, 0, 100);
     std::memset(buffer2, 0, 100);

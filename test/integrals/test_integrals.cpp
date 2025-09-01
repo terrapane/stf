@@ -80,7 +80,7 @@ STF_TEST(Integrals, Inequality)
 
     {
         signed char i = static_cast<signed char>(140);
-        unsigned char j = static_cast<char>(140);
+        unsigned char j = static_cast<unsigned char>(140);
 
         STF_ASSERT_NE(i, j);
     }
@@ -356,17 +356,9 @@ STF_TEST(Integrals, VariousCharTypes)
     }
 #endif
 
-    if (sizeof(wchar_t) == 2)
     {
         wchar_t i = 0x5c0f;
         wchar_t j = 0x5c0f;
-
-        STF_ASSERT_EQ(i, j);
-    }
-    else
-    {
-        wchar_t i = 0x00005c0f;
-        wchar_t j = 0x00005c0f;
 
         STF_ASSERT_EQ(i, j);
     }

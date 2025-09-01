@@ -17,7 +17,7 @@ set_target_properties(test_dissimilar_types
 target_compile_options(test_dissimilar_types
     PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>: -Wpedantic -Wextra -Wall>
-        $<$<CXX_COMPILER_ID:MSVC>: >)
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /Zc:__cplusplus>)
 
 # Add the test so that CTest can invoke it
 add_test(NAME test_dissimilar_types
