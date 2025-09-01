@@ -477,6 +477,24 @@ void PrintValue(const std::string &text, char32_t value)
 }
 #endif
 
+#if __cplusplus < 201703L
+namespace
+{
+// This is necessary to work around MSVC's complaint that sizeof(wchar_t)
+// yields a constant value when compiling with C++11 as a target
+
+// Define a compile-time constant for the condition
+template<bool Condition>
+struct SizeCheck
+{
+    static constexpr bool value = Condition;
+};
+
+// Specialization for wchar_t size check
+using WCharIs2Bytes = SizeCheck<sizeof(wchar_t) == 2>;
+} // namespace
+#endif
+
 /*
  *  PrintValue()
  *
@@ -506,7 +524,13 @@ void PrintValue(const std::string &text, wchar_t value)
                   "Unsupported wchar_t size");
 
     // This type varies in size by platform, either 16 or 32 bits observed
-    if (sizeof(wchar_t) == 2)
+#if __cplusplus >= 201703L
+    if constexpr (sizeof(wchar_t) == 2)
+#else
+    // This is necessary to work around MSVC's complaint that sizeof(wchar_t)
+    // yields a constant value when compiling with C++11 as a target
+    if (WCharIs2Bytes::value)
+#endif
     {
         oss << text << "wchar_t 0x" << std::setw(4)
             << static_cast<std::uint16_t>(value);

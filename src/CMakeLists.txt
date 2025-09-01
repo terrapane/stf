@@ -18,6 +18,7 @@ target_include_directories(stf
 target_link_libraries(stf PRIVATE Threads::Threads)
 
 # Specify the C++ standard to observe
+message(STATUS "Building with ${stf_CPP_STD}")
 set_target_properties(stf
     PROPERTIES
         CXX_STANDARD ${stf_CPP_STD}
@@ -38,7 +39,7 @@ endif()
 target_compile_options(stf
     PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic -Wextra -Wall -Werror>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>)
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /Zc:__cplusplus>)
 
 # Install target and associated include files
 if(stf_INSTALL)
