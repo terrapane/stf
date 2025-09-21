@@ -1,10 +1,14 @@
 # Change Log
 
+v1.0.4
+
+- Moved inclusion of `GNUInstallDirs`
+
 v1.0.3
 
-- Changed the memory comparison to use std::memcmp rather than a slow loop
-- Changed string constants to "const char * const" for simplicity and eye
-  toward C++11 compatibility, also removed constexpr and nested namespaces
+- Changed the memory comparison to use `std::memcmp` rather than a slow loop
+- Changed string constants to `const char * const` for simplicity and eye
+  toward C++11 compatibility, also removed `constexpr` and nested namespaces
   since those broke C++11 compatibility
 - Minor CMakeLists.txt change
 
@@ -16,7 +20,7 @@ v1.0.2
 
 v1.0.1
 
-- Updated link dependencies to link with Threads::Threads
+- Updated link dependencies to link with `Threads::Threads`
 
 v1.0.0
 

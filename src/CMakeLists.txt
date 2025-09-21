@@ -1,6 +1,9 @@
 # Threading support is required
 find_package(Threads REQUIRED)
 
+# Include standard installation directory variables
+include(GNUInstallDirs)
+
 # Create the STF library and the alias for consistent usage with
 # both installed an installed library and FetchContent
 add_library(stf STATIC stf.cpp)
@@ -43,7 +46,6 @@ target_compile_options(stf
 
 # Install target and associated include files
 if(stf_INSTALL)
-    include(GNUInstallDirs)
     install(TARGETS stf EXPORT stfTargets ARCHIVE)
     install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ TYPE INCLUDE)
     install(EXPORT stfTargets
