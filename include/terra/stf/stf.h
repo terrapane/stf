@@ -1,7 +1,7 @@
 /*
  *  stf.h
  *
- *  Copyright (C) 2024
+ *  Copyright (C) 2024, 2025, 2026
  *  Terrapane Corporation
  *  All Rights Reserved
  *
@@ -118,7 +118,6 @@
 #include <cstdlib>
 #include <type_traits>
 #include <string>
-#include <atomic>
 
 // Macro to define a test function and register the test for execution
 #define STF_TEST(group, test) \
@@ -147,7 +146,7 @@
     if (!((expected) == (actual))) \
     { \
         Terra::STF::ExpectFail(__FILE__, __LINE__, (expected), (actual)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -156,7 +155,7 @@
     if (!((a) != (b))) \
     { \
         Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -165,7 +164,7 @@
     if (!((a) > (b))) \
     { \
         Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -174,7 +173,7 @@
     if (!((a) >= (b))) \
     { \
         Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -183,7 +182,7 @@
     if (!((a) < (b))) \
     { \
         Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -192,7 +191,7 @@
     if (!((a) <= (b))) \
     { \
         Terra::STF::LhsRhsFail(__FILE__, __LINE__, (a), (b)); \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -200,7 +199,7 @@
 #define STF_ASSERT_TRUE(a) \
     if (!Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == true)) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -208,7 +207,7 @@
 #define STF_ASSERT_FALSE(a) \
     if (!Terra::STF::AssertBoolean(__FILE__, __LINE__, bool(a) == false)) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -216,7 +215,7 @@
 #define STF_ASSERT_CLOSE(a, b, epsilon) \
     if (!Terra::STF::AssertClose(__FILE__, __LINE__, (a), (b), (epsilon))) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -224,7 +223,7 @@
 #define STF_ASSERT_MEM_EQ(a, b, size) \
     if (!Terra::STF::AssertMemoryEqual(__FILE__, __LINE__, (a), (b), (size))) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -236,7 +235,7 @@
                                           (b), \
                                           (size))) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -244,7 +243,7 @@
 #define STF_ASSERT_EXCEPTION(function) \
     if (!Terra::STF::AssertException(__FILE__, __LINE__, (function))) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -253,7 +252,7 @@
     if (!Terra::STF::AssertException<exception>(__FILE__, __LINE__, \
                                                 (function), #exception)) \
     { \
-        Terra::STF::Test_Failed = true; \
+        Terra::STF::TestFailed(); \
         return; \
     }
 
@@ -265,19 +264,18 @@
 
 namespace Terra
 {
+
 namespace STF
 {
 
 // Default test timeout in seconds
 constexpr unsigned Default_Timeout = 600;
 
-// String Constants
-extern const char * const ExpectText;
-extern const char * const ActualText;
-extern const char * const LHSText;
-extern const char * const RHSText;
-extern std::atomic<bool> Test_Failed;
-extern unsigned failed_registrations;
+// String constants functions
+std::string ExpectText();
+std::string ActualText();
+std::string LHSText();
+std::string RHSText();
 
 /*
  *  RegisterTest()
@@ -324,6 +322,23 @@ std::size_t RegisterTest(const char *name,
  *      None.
  */
 bool ExcludeTest(const char *name) noexcept;
+
+/*
+ *  TestFailed()
+ *
+ *  Description:
+ *      This function is called to indicate that a test has failed.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      Nothing.
+ *
+ *  Comments:
+ *      None.
+ */
+void TestFailed();
 
 /*
  *  PrintValue()
@@ -755,8 +770,8 @@ void ExpectFail(const std::string &file,
                 const U &actual)
 {
     PrintAssertFailed(file, line);
-    PrintValue(ExpectText, expected);
-    PrintValue(ActualText, actual);
+    PrintValue(ExpectText(), expected);
+    PrintValue(ActualText(), actual);
 }
 
 /*
@@ -792,8 +807,8 @@ void LhsRhsFail(const std::string &file,
                 const U &rhs)
 {
     PrintAssertFailed(file, line);
-    PrintValue(LHSText, lhs);
-    PrintValue(RHSText, rhs);
+    PrintValue(LHSText(), lhs);
+    PrintValue(RHSText(), rhs);
 }
 
 /*
@@ -851,7 +866,7 @@ bool AssertBoolean(const std::string &file, std::size_t line, bool value);
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  float lhs,
                  float rhs,
                  float epsilon);
@@ -887,7 +902,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  double lhs,
                  double rhs,
                  double epsilon);
@@ -923,7 +938,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  long double lhs,
                  long double rhs,
                  long double epsilon);
@@ -958,7 +973,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertMemoryEqual(const std::string &file,
-                       const std::size_t line,
+                       std::size_t line,
                        const void *expected,
                        const void *actual,
                        std::size_t length);
@@ -993,7 +1008,7 @@ bool AssertMemoryEqual(const std::string &file,
  *      None.
  */
 bool AssertMemoryNotEqual(const std::string &file,
-                          const std::size_t line,
+                          std::size_t line,
                           const void *lhs,
                           const void *rhs,
                           std::size_t length);
@@ -1023,7 +1038,7 @@ bool AssertMemoryNotEqual(const std::string &file,
  *      None.
  */
 bool AssertException(const std::string &file,
-                     const std::size_t line,
+                     std::size_t line,
                      const std::function<void()> &function);
 
 /*
@@ -1056,9 +1071,9 @@ bool AssertException(const std::string &file,
  */
 template<typename T>
 bool AssertException(const std::string &file,
-                     const std::size_t line,
+                     std::size_t line,
                      const std::function<void()> &function,
-                     const std::string exception_name)
+                     const std::string &exception_name)
 {
     bool exception_thrown = false;
     bool expected_exception = false;
@@ -1080,15 +1095,16 @@ bool AssertException(const std::string &file,
     if (!expected_exception)
     {
         PrintAssertFailed(file, line);
-        PrintValue(ExpectText,
+        PrintValue(ExpectText(),
                    std::string("exception of type ") + exception_name);
         if (exception_thrown)
         {
-            PrintValue(ActualText, std::string("some other exception thrown"));
+            PrintValue(ActualText(),
+                       std::string("some other exception thrown"));
         }
         else
         {
-            PrintValue(ActualText, std::string("no exception thrown"));
+            PrintValue(ActualText(), std::string("no exception thrown"));
         }
 
         return false;
@@ -1098,4 +1114,5 @@ bool AssertException(const std::string &file,
 }
 
 } // Namespace STF
+
 } // Namespace Terra

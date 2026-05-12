@@ -1,7 +1,7 @@
 /*
  *  stf.cpp
  *
- *  Copyright (C) 2024
+ *  Copyright (C) 2024, 2025, 2026
  *  Terrapane Corporation
  *  All Rights Reserved
  *
@@ -21,54 +21,157 @@
  *      Requires C++11 or greater.
  */
 
+#include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <tuple>
 #include <vector>
 #include <cctype>
 #include <cstring>
 #include <cmath>
-#include <memory>
-#include <stdexcept>
+#include <exception>
 #include <chrono>
 #include <thread>
 #include <condition_variable>
 #include <mutex>
 #include <cstdlib>
-#include <typeinfo>
+#include <cstdint>
+#include <functional>
+#include <string>
 #include <terra/stf/stf.h>
 
 namespace Terra
 {
+
 namespace STF
 {
 
 // Strings used when producing failure messages
-const char * const ExpectText = "  expected: ";
-const char * const ActualText = "    actual: ";
-const char * const LHSText = "  lhs: ";
-const char * const RHSText = "  rhs: ";
-
-// Global used to indicate a test failed
-std::atomic<bool> Test_Failed{};
-
-// Count of tests that failed to register
-unsigned failed_registrations{};
-
-// Define a vector to hold unit test functions to execute
-using UnitTests = std::vector<std::tuple<std::string,
-                              std::function<void()>,
-                              unsigned>>;
-
-// Define a vector to hold unit test names to exclude from running
-using UnitTestExclusions = std::vector<std::string>;
+std::string ExpectText() { return "  expected: "; }
+std::string ActualText() { return "    actual: "; }
+std::string LHSText() { return "  lhs: "; }
+std::string RHSText() { return "  rhs: "; }
 
 namespace
 {
 
-// Define a pointer for the aforementioned UnitTests
-std::unique_ptr<UnitTests> Unit_Tests;
+// Define a type to hold unit test functions to execute
+using UnitTests = std::vector<std::tuple<std::string,
+                              std::function<void()>,
+                              unsigned>>;
 
-// Define a pointer for tests that should be excluded
-std::unique_ptr<UnitTestExclusions> Unit_Test_Exclusions;
+// Define a type to hold unit test names to exclude from running
+using UnitTestExclusions = std::vector<std::string>;
+
+/*
+ *  GetTestFailState()
+ *
+ *  Description:
+ *      Internal function return the state of test failures.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      A reference to the boolean that indicates if a test failed.
+ *
+ *  Comments:
+ *      None.
+ */
+bool &GetTestFailState()
+{
+    static bool test_failed{};
+
+    return test_failed;
+}
+
+/*
+ *  DidTestFail()
+ *
+ *  Description:
+ *      This function is called to determine if a test failed.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      True if a test failed, false if not.
+ *
+ *  Comments:
+ *      None.
+ */
+bool DidTestFail()
+{
+    return Terra::STF::GetTestFailState();
+}
+
+/*
+ *  GetUnitTests()
+ *
+ *  Description:
+ *      Internal function to return a reference to the vector of unit tests.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      A reference to the unit test vector.
+ *
+ *  Comments:
+ *      None.
+ */
+UnitTests &GetUnitTests()
+{
+    static UnitTests tests;
+
+    return tests;
+}
+
+/*
+ *  GetRegistrationFailures()
+ *
+ *  Description:
+ *      Internal function to return a reference to a counter for test
+ *      registration failures.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      A reference to count of registration failures.
+ *
+ *  Comments:
+ *      None.
+ */
+unsigned &GetRegistrationFailures()
+{
+    // Count of tests that failed to register
+    static unsigned failed_registrations{};
+
+    return failed_registrations;
+}
+
+/*
+ *  GetUnitTestExclusions()
+ *
+ *  Description:
+ *      Internal function to return a reference to the vector excluded tests.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      A reference to the excluded test vector.
+ *
+ *  Comments:
+ *      None.
+ */
+UnitTestExclusions &GetUnitTestExclusions()
+{
+    static UnitTestExclusions exclusions;
+
+    return exclusions;
+}
 
 /*
  *  GetMemoryHex()
@@ -190,19 +293,16 @@ std::size_t RegisterTest(const char *name,
 {
     try
     {
-        // If this is the first test, allocate storage
-        if (!Unit_Tests) Unit_Tests.reset(new UnitTests());
-
         // Store this test in the unit test vector
-        Unit_Tests->emplace_back(name, test, timeout);
+        GetUnitTests().emplace_back(name, test, timeout);
     }
     catch (...)
     {
-        failed_registrations++;
+        GetRegistrationFailures()++;
         return 0;
     }
 
-    return Unit_Tests->size();
+    return GetUnitTests().size();
 }
 
 /*
@@ -225,22 +325,36 @@ bool ExcludeTest(const char *name) noexcept
 {
     try
     {
-        // If this is the first test exclusion, allocate storage
-        if (!Unit_Test_Exclusions)
-        {
-            Unit_Test_Exclusions.reset(new UnitTestExclusions());
-        }
-
         // Store this test in the unit test vector
-        Unit_Test_Exclusions->emplace_back(name);
+        GetUnitTestExclusions().emplace_back(name);
     }
     catch (...)
     {
-        failed_registrations++;
+        GetRegistrationFailures()++;
         return false;
     }
 
     return true;
+}
+
+/*
+ *  TestFailed()
+ *
+ *  Description:
+ *      This function is called to record the fact that a test failed.
+ *
+ *  Parameters:
+ *      None.
+ *
+ *  Returns:
+ *      Nothing.
+ *
+ *  Comments:
+ *      None.
+ */
+void TestFailed()
+{
+    Terra::STF::GetTestFailState() = true;
 }
 
 /*
@@ -631,7 +745,7 @@ bool AssertBoolean(const std::string &file, std::size_t line, bool value)
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  float lhs,
                  float rhs,
                  float epsilon)
@@ -639,8 +753,8 @@ bool AssertClose(const std::string &file,
     if (fabsf(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
-    PrintValue(LHSText, lhs);
-    PrintValue(RHSText, rhs);
+    PrintValue(LHSText(), lhs);
+    PrintValue(RHSText(), rhs);
 
     return false;
 }
@@ -676,7 +790,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  double lhs,
                  double rhs,
                  double epsilon)
@@ -684,8 +798,8 @@ bool AssertClose(const std::string &file,
     if (fabs(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
-    PrintValue(LHSText, lhs);
-    PrintValue(RHSText, rhs);
+    PrintValue(LHSText(), lhs);
+    PrintValue(RHSText(), rhs);
 
     return false;
 }
@@ -721,7 +835,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertClose(const std::string &file,
-                 const std::size_t line,
+                 std::size_t line,
                  long double lhs,
                  long double rhs,
                  long double epsilon)
@@ -729,8 +843,8 @@ bool AssertClose(const std::string &file,
     if (fabsl(lhs - rhs) < epsilon) return true;
 
     PrintAssertFailed(file, line);
-    PrintValue(LHSText, lhs);
-    PrintValue(RHSText, rhs);
+    PrintValue(LHSText(), lhs);
+    PrintValue(RHSText(), rhs);
 
     return false;
 }
@@ -765,7 +879,7 @@ bool AssertClose(const std::string &file,
  *      None.
  */
 bool AssertMemoryEqual(const std::string &file,
-                       const std::size_t line,
+                       std::size_t line,
                        const void *expected,
                        const void *actual,
                        std::size_t length)
@@ -774,11 +888,11 @@ bool AssertMemoryEqual(const std::string &file,
     if (std::memcmp(expected, actual, length) == 0) return true;
 
     PrintAssertFailed(file, line);
-    std::cout << ExpectText << "0x"
+    std::cout << ExpectText() << "0x"
               << GetMemoryHex(static_cast<const std::uint8_t *>(expected),
                               length)
               << std::endl
-              << ActualText << "0x"
+              << ActualText() << "0x"
               << GetMemoryHex(static_cast<const std::uint8_t *>(actual), length)
               << std::endl;
 
@@ -815,7 +929,7 @@ bool AssertMemoryEqual(const std::string &file,
  *      None.
  */
 bool AssertMemoryNotEqual(const std::string &file,
-                          const std::size_t line,
+                          std::size_t line,
                           const void *lhs,
                           const void *rhs,
                           std::size_t length)
@@ -824,10 +938,10 @@ bool AssertMemoryNotEqual(const std::string &file,
     if (std::memcmp(lhs, rhs, length) != 0) return true;
 
     PrintAssertFailed(file, line);
-    std::cout << LHSText << "0x"
+    std::cout << LHSText() << "0x"
               << GetMemoryHex(static_cast<const std::uint8_t *>(lhs), length)
               << std::endl
-              << RHSText << "0x"
+              << RHSText() << "0x"
               << GetMemoryHex(static_cast<const std::uint8_t *>(rhs), length)
               << std::endl;
 
@@ -859,7 +973,7 @@ bool AssertMemoryNotEqual(const std::string &file,
  *      None.
  */
 bool AssertException(const std::string &file,
-                     const std::size_t line,
+                     std::size_t line,
                      const std::function<void()> &function)
 {
     try
@@ -872,12 +986,13 @@ bool AssertException(const std::string &file,
     }
 
     PrintAssertFailed(file, line);
-    PrintValue(ExpectText, std::string("any exception thrown"));
-    PrintValue(ActualText, std::string("no exception thrown"));
+    PrintValue(ExpectText(), std::string("any exception thrown"));
+    PrintValue(ActualText(), std::string("no exception thrown"));
     return false;
 }
 
 } // Namespace STF
+
 } // Namespace Terra
 
 /*
@@ -901,28 +1016,28 @@ int main()
     std::chrono::nanoseconds total_duration{};
 
     // Check that there are registered unit test
-    if (!Terra::STF::Unit_Tests || Terra::STF::Unit_Tests->empty())
+    if (Terra::STF::GetUnitTests().empty())
     {
         std::cout << "Error: there are no registered tests" << std::endl;
         return EXIT_FAILURE;
     }
 
     // If any tests failed to register, exit with failure
-    if (Terra::STF::failed_registrations > 0)
+    if (Terra::STF::GetRegistrationFailures() > 0)
     {
-        std::cout << "Error: " << Terra::STF::failed_registrations
+        std::cout << "Error: " << Terra::STF::GetRegistrationFailures()
                   << " tests failed to register to get excluded" << std::endl;
         return EXIT_FAILURE;
     }
 
     std::cout << "Total numbers of tests: "
-              << Terra::STF::Unit_Tests->size()
+              << Terra::STF::GetUnitTests().size()
               << std::endl;
 
     try
     {
         // Iterate over all of the tests found, executing each in turn
-        for (const auto &unit_test : *Terra::STF::Unit_Tests)
+        for (const auto &unit_test : Terra::STF::GetUnitTests())
         {
             std::condition_variable cv;
             std::mutex test_mutex;
@@ -936,12 +1051,13 @@ int main()
             std::tie(name, test, timeout) = unit_test;
 
             // Check to see if the test is to be excluded
-            if (Terra::STF::Unit_Test_Exclusions)
+            if (!Terra::STF::GetUnitTestExclusions().empty())
             {
                 bool exclude_test = false;
 
                 // Iterate over the vector to see if the test is excluded
-                for (const auto &exclusion : *Terra::STF::Unit_Test_Exclusions)
+                for (const auto &exclusion :
+                     Terra::STF::GetUnitTestExclusions())
                 {
                     // If the test name is found, indicate it is excluded
                     if (exclusion == name)
@@ -982,21 +1098,21 @@ int main()
                                   << "Unexpected exception thrown: "
                                   << e.what()
                                   << std::endl;
-                        Terra::STF::Test_Failed = true;
+                        Terra::STF::TestFailed();
                     }
                     catch (...)
                     {
                         std::cout << std::endl
                                   << "Unexpected exception thrown"
                                   << std::endl;
-                        Terra::STF::Test_Failed = true;
+                        Terra::STF::TestFailed();
                     }
 
                     // Get the end time
                     test_end_time = std::chrono::steady_clock::now();
 
                     // Alert the main thread that the test has completed
-                    std::lock_guard<std::mutex> lock(test_mutex);
+                    const std::lock_guard<std::mutex> lock(test_mutex);
                     cv.notify_one();
                 });
 
@@ -1020,7 +1136,7 @@ int main()
             test_thread.join();
 
             // If the test failed, exit
-            if (Terra::STF::Test_Failed.load()) return EXIT_FAILURE;
+            if (Terra::STF::DidTestFail()) return EXIT_FAILURE;
 
             // Compute the duration for this test
             std::chrono::nanoseconds test_duration =

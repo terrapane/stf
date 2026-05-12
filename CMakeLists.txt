@@ -23,7 +23,7 @@ option(stf_CLANG_TIDY "Use clang-tidy to perform linting during build" OFF)
 
 # By default, library built for C++20; set stf_CPP_STD to 11, 14, 17, or 20
 if(NOT DEFINED stf_CPP_STD)
-    set(stf_CPP_STD 20 CACHE STRING "C++ Version for Testing with STF")
+    set(stf_CPP_STD 11 CACHE STRING "C++ Version for Testing with STF")
 endif()
 
 # Include CTest, which will set BUILD_TESTING

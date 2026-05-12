@@ -1,5 +1,9 @@
 # Change Log
 
+v1.0.5
+
+- Addressed some clang-tidy suggestions
+
 v1.0.4
 
 - Moved inclusion of `GNUInstallDirs`
